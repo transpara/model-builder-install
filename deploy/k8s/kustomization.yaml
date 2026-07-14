@@ -1,0 +1,20 @@
+# Deploys Model Builder AND the claude-subscription-gateway it depends on.
+# The gateway's manifests live here (not in its own repo) so a prototype
+# deployment is one `kubectl apply -k`. See docs/INSTALL-new-server.md.
+#
+# Already have a gateway? Deploy Model Builder alone with:
+#   kubectl apply -f model-builder.yaml -n model-builder
+# and point the UI Settings at the existing gateway (it must run
+# CSG_ALLOW_TOOLS=true).
+#
+# Expects two Secrets to exist in the namespace before the pods can run:
+#   ghcr-pull        docker-registry secret for ghcr.io (images are private)
+#   gateway-secrets  CSG_API_KEY + CSG_ADMIN_PASSWORD
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: model-builder
+resources:
+  - namespace.yaml
+  - gateway.yaml
+  - model-builder.yaml
+  - network-policy.yaml

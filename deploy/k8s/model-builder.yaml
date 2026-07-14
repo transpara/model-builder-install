@@ -1,0 +1,92 @@
+# Model Builder: FastAPI service + UI on :4010. Reaches the gateway at
+# http://claude-subscription-gateway:8790 (same-namespace service DNS),
+# configured in the UI Settings "Claude Gateway" panel and persisted in
+# the model-data volume.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: model-data
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 2Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: model-builder
+  labels:
+    app: model-builder
+spec:
+  replicas: 1
+  # SQLite on the volume: single writer, never two pods at once.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: model-builder
+  template:
+    metadata:
+      labels:
+        app: model-builder
+    spec:
+      imagePullSecrets:
+        - name: ghcr-pull
+      # Fresh PVCs are root-owned on most provisioners; fsGroup makes /data
+      # writable by appuser (UID 1000) so SQLite can create its files.
+      securityContext:
+        fsGroup: 1000
+      containers:
+        - name: model-builder
+          image: ghcr.io/transpara/model-builder:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 4010
+          env:
+            - name: LOG_LEVEL
+              value: "INFO"
+          volumeMounts:
+            - name: model-data
+              mountPath: /data
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 4010
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          # Generous liveness thresholds: generations run for minutes and the
+          # pod must not be restarted mid-run over one slow probe.
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 4010
+            initialDelaySeconds: 15
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 5
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+      volumes:
+        - name: model-data
+          persistentVolumeClaim:
+            claimName: model-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: model-builder
+spec:
+  # NodePort keeps the UI reachable on the LAN without an ingress
+  # controller: http://<node-ip>:30410. Swap for ClusterIP + Ingress if the
+  # cluster has one.
+  type: NodePort
+  selector:
+    app: model-builder
+  ports:
+    - port: 4010
+      targetPort: 4010
+      nodePort: 30410
