@@ -94,6 +94,24 @@ sudo firewall-cmd --reload
   disabled: `sudo systemctl disable --now nm-cloud-setup.service
   nm-cloud-setup.timer`, then reboot before installing.
 
+**AWS (EC2) notes:**
+
+- **Instance size:** 2 vCPU / 8 GB (t3.large or similar) recommended, with a
+  30 GB disk. 4 GB can run idle but generations spike memory and risk OOM.
+- **AMI:** Ubuntu 22.04/24.04 is the simplest choice. RHEL AMIs work with the
+  `nm-cloud-setup` step above done first.
+- **Security Group:** inbound rules are the firewall here. Open **30410/tcp
+  only to your own IP or VPN range**. The UI has no authentication, so never
+  open it to 0.0.0.0/0. Add 6443/tcp (same restriction) only if you will run
+  `kubectl` from outside the instance. Leave everything else closed; all
+  outbound stays open (the gateway needs HTTPS out to Anthropic).
+- **Addresses:** the install summary prints the instance's private IP; from
+  outside the VPC, browse the instance's public IP instead (Security Group
+  permitting). Public IPs change on stop/start, so allocate an Elastic IP if
+  you want a stable address, or skip public exposure entirely and use
+  `kubectl -n model-builder port-forward svc/model-builder 4010:4010` over
+  SSH.
+
 ---
 
 ## Using an existing gateway
