@@ -34,15 +34,15 @@ spec:
       labels:
         app: claude-subscription-gateway
     spec:
-      imagePullSecrets:
-        - name: ghcr-pull
       initContainers:
         # Seed the credentials volume: the .claude.json subPath mount below
         # must target an existing FILE (kubelet creates a directory for a
         # missing subPath), and appuser (UID 1000) must be able to write so
         # the CLI can store and refresh OAuth tokens.
         - name: seed-credentials
-          image: busybox:1.36
+          # Through the Harbor docker.io proxy project so every image in this
+          # deployment resolves via registry.transpara.com.
+          image: registry.transpara.com/docker.io/library/busybox:1.36
           command:
             - sh
             - -c
@@ -55,8 +55,14 @@ spec:
               mountPath: /creds
       containers:
         - name: gateway
-          image: ghcr.io/transpara/claude-subscription-gateway:latest
-          imagePullPolicy: Always
+          # Pulled anonymously from the Transpara registry (public project) —
+          # no imagePullSecrets needed. Harbor enforces tag immutability on
+          # this project, so tags are pinned (git SHA + digest, the Transpara
+          # convention) and updating means bumping this ref, never re-pushing.
+          image: registry.transpara.com/transpara/claude-subscription-gateway:fff4e2702a0e823a300e952c04ba9c68b7e80285@sha256:9da9fe9b69c30b52a596f327ee64d5e1b3ff88bd339caf12c869621380ae3859
+          # IfNotPresent pairs with the immutable pinned tag — Always would
+          # just re-check the registry for a ref that cannot change.
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8790
           env:

@@ -9,9 +9,10 @@
 # transpara/model-builder-install repo.
 #
 # Usage:
-#   GITHUB_USER=<you> GITHUB_TOKEN=<classic PAT with read:packages> ./install-model-builder.sh
+#   ./install-model-builder.sh
 #
-# Anything missing is prompted for. Flags:
+# Images pull anonymously from registry.transpara.com — no registry
+# credentials needed. Flags:
 #   --install-k3s   install k3s first if there is no working kubectl (for a
 #                   box that does not have Kubernetes yet)
 #   --skip-login    do not offer the interactive `claude setup-token` step
@@ -35,21 +36,6 @@ done
 say()  { echo; echo "==> $*"; }
 warn() { echo "WARNING: $*" >&2; }
 die()  { echo "ERROR: $*" >&2; exit 1; }
-
-GITHUB_USER="${GITHUB_USER:-}"
-GITHUB_TOKEN="${GITHUB_TOKEN:-}"
-ensure_github_user() {
-  if [ -z "$GITHUB_USER" ]; then
-    [ -t 0 ] || die "GITHUB_USER not set and no TTY to prompt"
-    read -rp "GitHub username: " GITHUB_USER
-  fi
-}
-ensure_github_token() {
-  if [ -z "$GITHUB_TOKEN" ]; then
-    [ -t 0 ] || die "GITHUB_TOKEN not set and no TTY to prompt"
-    read -rsp "GitHub classic PAT (read:packages): " GITHUB_TOKEN; echo
-  fi
-}
 
 # Manifests: prefer a deploy/k8s next to (or one level above) the script;
 # otherwise fetch the public install repo tarball. No credentials needed.
@@ -112,16 +98,8 @@ fi
 say "Namespace and secrets"
 $KUBECTL get namespace "$NS" >/dev/null 2>&1 || $KUBECTL create namespace "$NS"
 
-if $KUBECTL -n "$NS" get secret ghcr-pull >/dev/null 2>&1; then
-  echo "ghcr-pull secret exists, keeping it"
-else
-  ensure_github_user
-  ensure_github_token
-  $KUBECTL -n "$NS" create secret docker-registry ghcr-pull \
-    --docker-server=ghcr.io \
-    --docker-username="$GITHUB_USER" \
-    --docker-password="$GITHUB_TOKEN"
-fi
+# Images now pull anonymously from registry.transpara.com; a ghcr-pull
+# secret from an older install is left alone (nothing references it).
 
 if $KUBECTL -n "$NS" get secret gateway-secrets >/dev/null 2>&1; then
   echo "gateway-secrets exists, keeping it (existing CSG_API_KEY stays valid)"
