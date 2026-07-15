@@ -149,6 +149,15 @@ $KUBECTL -n "$NS" exec deploy/model-builder -- python -c \
   "import urllib.request; urllib.request.urlopen('http://localhost:4010/health', timeout=10)" \
   && echo "model-builder /health ok" || die "model-builder /health failed"
 
+# Self-heal: if a token is already stored but the deployment is not wired to
+# read it (e.g. a cached manifest tarball lacked the env entry), wire it now.
+if $KUBECTL -n "$NS" get secret gateway-secrets -o jsonpath='{.data.CSG_CLAUDE_OAUTH_TOKEN}' 2>/dev/null | grep -q . \
+   && ! $KUBECTL -n "$NS" get deploy claude-subscription-gateway -o jsonpath='{.spec.template.spec.containers[0].env[*].name}' | grep -q CSG_CLAUDE_OAUTH_TOKEN; then
+  say "Wiring the stored subscription token into the gateway"
+  $KUBECTL -n "$NS" set env deploy/claude-subscription-gateway --from=secret/gateway-secrets --keys=CSG_CLAUDE_OAUTH_TOKEN
+  $KUBECTL -n "$NS" rollout status deploy/claude-subscription-gateway --timeout=180s
+fi
+
 # ── Claude subscription login ────────────────────────────────────────────
 probe_login() {
   $KUBECTL -n "$NS" exec deploy/claude-subscription-gateway -- \
@@ -180,6 +189,10 @@ else
     if [ -n "$OAUTH_TOKEN" ]; then
       $KUBECTL -n "$NS" patch secret gateway-secrets --type merge \
         -p "{\"stringData\":{\"CSG_CLAUDE_OAUTH_TOKEN\":\"$OAUTH_TOKEN\"}}"
+      # Belt and suspenders: ensure the deployment reads the secret even if
+      # the applied manifest predates the token wiring.
+      $KUBECTL -n "$NS" set env deploy/claude-subscription-gateway \
+        --from=secret/gateway-secrets --keys=CSG_CLAUDE_OAUTH_TOKEN >/dev/null || true
       $KUBECTL -n "$NS" rollout restart deploy/claude-subscription-gateway
       $KUBECTL -n "$NS" rollout status deploy/claude-subscription-gateway --timeout=180s
     fi
