@@ -88,7 +88,16 @@ if [ -z "$KUBECTL" ]; then
   fi
 fi
 
-$KUBECTL wait --for=condition=Ready node --all --timeout=120s >/dev/null
+# Right after a fresh k3s install the node object does not exist yet, and
+# `kubectl wait --all` errors out on zero resources instead of waiting.
+# Poll for registration first.
+NODE_WAIT=0
+until [ -n "$($KUBECTL get nodes --no-headers 2>/dev/null)" ]; do
+  NODE_WAIT=$((NODE_WAIT+2))
+  [ "$NODE_WAIT" -ge 120 ] && die "no node registered after 120s; check: sudo systemctl status k3s"
+  sleep 2
+done
+$KUBECTL wait --for=condition=Ready node --all --timeout=180s >/dev/null
 echo "Cluster reachable: $($KUBECTL get nodes --no-headers | wc -l) node(s) Ready (using: $KUBECTL)"
 
 if command -v systemctl >/dev/null 2>&1 && systemctl is-active --quiet firewalld 2>/dev/null; then
