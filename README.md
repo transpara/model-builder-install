@@ -55,7 +55,9 @@ works exactly the same; the standalone script fetches the manifests itself.)
    `Run 'claude setup-token' in the gateway pod now? [y/N]`. Answer `y`, open
    the URL it prints **in the browser on your own computer** (not the
    server), sign in with the Claude account, and paste the code back into the
-   terminal.
+   terminal. The CLI then prints a long-lived token (`sk-ant-oat01-...`);
+   paste that when the script asks, and it is stored as a cluster secret that
+   survives restarts and updates.
 5. It wires Model Builder to the gateway automatically, runs a real test
    completion through the whole chain, and prints the UI address
    (`http://<server-ip>:30410`).
@@ -193,8 +195,16 @@ kubectl -n model-builder exec -it deploy/claude-subscription-gateway -- claude s
 ```
 
 Open the printed URL in the browser on your own computer, sign in with the
-Claude Max/Pro account, and paste the code back. The credentials land on the
-`claude-credentials` volume and survive restarts and updates.
+Claude Max/Pro account, and paste the code back. The CLI then prints a
+long-lived token (`sk-ant-oat01-...`) rather than storing it. Save it into
+the gateway's secret and restart, so it is injected into every claude call
+and survives restarts and updates:
+
+```bash
+kubectl -n model-builder patch secret gateway-secrets --type merge \
+  -p '{"stringData":{"CSG_CLAUDE_OAUTH_TOKEN":"<the sk-ant-oat01 token>"}}'
+kubectl -n model-builder rollout restart deploy/claude-subscription-gateway
+```
 
 Verify with a real completion (port-forward first:
 `kubectl -n model-builder port-forward svc/claude-subscription-gateway 8790:8790`):
@@ -266,11 +276,9 @@ kubectl -n model-builder exec deploy/model-builder -- tar czf - -C /data . > mod
 kubectl delete namespace model-builder
 ```
 
-Subscription re-auth, if the login ever expires, is one command:
-
-```bash
-kubectl -n model-builder exec -it deploy/claude-subscription-gateway -- claude setup-token
-```
+Subscription re-auth, if the token ever expires (they last about a year):
+re-run the installer and answer `y` at the login step, or repeat manual
+step 4 (setup-token, save the printed token into the secret, restart).
 
 ---
 

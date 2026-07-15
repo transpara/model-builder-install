@@ -172,6 +172,17 @@ else
   read -rp "Run 'claude setup-token' in the gateway pod now? [y/N] " yn
   if [ "${yn,,}" = "y" ]; then
     $KUBECTL -n "$NS" exec -it deploy/claude-subscription-gateway -- claude setup-token || true
+    echo
+    echo "The CLI printed a long-lived token (sk-ant-oat01-...) but does NOT store it."
+    echo "Paste it below; it is saved into the gateway-secrets secret, which the"
+    echo "gateway injects into every claude call (survives restarts and updates)."
+    read -rsp "Token (hidden; Enter to skip): " OAUTH_TOKEN; echo
+    if [ -n "$OAUTH_TOKEN" ]; then
+      $KUBECTL -n "$NS" patch secret gateway-secrets --type merge \
+        -p "{\"stringData\":{\"CSG_CLAUDE_OAUTH_TOKEN\":\"$OAUTH_TOKEN\"}}"
+      $KUBECTL -n "$NS" rollout restart deploy/claude-subscription-gateway
+      $KUBECTL -n "$NS" rollout status deploy/claude-subscription-gateway --timeout=180s
+    fi
     CODE=$(probe_login)
     if [ "$CODE" = "200" ]; then
       echo "Login verified end to end"
@@ -216,6 +227,6 @@ echo "Gateway key:   $KUBECTL -n $NS get secret gateway-secrets -o jsonpath='{.d
 echo "Admin UI:      $KUBECTL -n $NS port-forward svc/claude-subscription-gateway 8790:8790  ->  http://localhost:8790/admin"
 if [ "$LOGGED_IN" != true ]; then
   echo
-  echo "STILL TO DO: connect the Claude subscription, then re-run this script to verify:"
-  echo "  $KUBECTL -n $NS exec -it deploy/claude-subscription-gateway -- claude setup-token"
+  echo "STILL TO DO: connect the Claude subscription. Re-run this script, answer y"
+  echo "at the login step, and paste the token the CLI prints when asked."
 fi
