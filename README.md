@@ -31,18 +31,31 @@ the application images are private and need one GitHub token (below).
 - Your **Claude Max (or Pro) account** login
 - **SSH access with sudo** on the target server
 
-**Then, in an SSH session on the server:**
+**Then, in an SSH session on the server** — one line:
+
+```bash
+# Kubernetes already on the server (typical):
+bash <(curl -sfL https://raw.githubusercontent.com/transpara/model-builder-install/main/install-model-builder.sh)
+
+# Bare server with no Kubernetes yet (installs k3s first):
+bash <(curl -sfL https://raw.githubusercontent.com/transpara/model-builder-install/main/install-model-builder.sh) --install-k3s
+```
+
+> Use the `bash <(curl ...)` form exactly as written. The lookalike
+> `curl ... | bash` does NOT work: piping takes over stdin, which breaks the
+> script's interactive prompts.
+
+Prefer to read it first, or keep a copy? Download-then-run works the same:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/transpara/model-builder-install/main/install-model-builder.sh \
   -o install-model-builder.sh
 chmod +x install-model-builder.sh
-./install-model-builder.sh --install-k3s
-# omit --install-k3s if the server already runs Kubernetes
+./install-model-builder.sh
 ```
 
 (Cloning this repository and running `./install-model-builder.sh` from it
-works exactly the same; the standalone script fetches the manifests itself.)
+also works; the standalone script fetches the manifests itself.)
 
 **What happens next, in order:**
 
