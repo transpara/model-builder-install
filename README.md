@@ -87,6 +87,111 @@ Gateway**. Requirements:
 
 ---
 
+## Manual install (reference)
+
+Everything the script does, as individual steps. Useful for troubleshooting
+or if you prefer to run them yourself. Run these from any machine whose
+`kubectl` reaches the target cluster.
+
+**1. Check the cluster**
+
+```bash
+kubectl get nodes          # the node(s) show Ready
+kubectl get storageclass   # one entry marked (default), or PVCs will not bind
+```
+
+(k3s ships a default StorageClass. To install k3s on a bare server:
+`curl -sfL https://get.k3s.io | sudo sh -`, then use `sudo kubectl` or copy
+`/etc/rancher/k3s/k3s.yaml` into your kubeconfig.)
+
+**2. Create the namespace and secrets**
+
+```bash
+kubectl create namespace model-builder
+
+# Pull secret for the private application images
+kubectl -n model-builder create secret docker-registry ghcr-pull \
+  --docker-server=ghcr.io \
+  --docker-username=<your-github-username> \
+  --docker-password=<PAT with read:packages>
+
+# The gateway's key material. CSG_API_KEY is a password you INVENT (not an
+# Anthropic key); Model Builder sends it in the x-api-key header. The admin
+# password protects the gateway's web admin UI.
+kubectl -n model-builder create secret generic gateway-secrets \
+  --from-literal=CSG_API_KEY=$(openssl rand -hex 32) \
+  --from-literal=CSG_ADMIN_PASSWORD=$(openssl rand -hex 12)
+```
+
+**3. Deploy**
+
+From a clone of this repository:
+
+```bash
+kubectl apply -k deploy/k8s/
+kubectl -n model-builder get pods -w   # wait for both pods Running and READY 1/1
+```
+
+This creates the gateway (Deployment with health probes, credentials PVC,
+ClusterIP service, NetworkPolicy) and Model Builder (Deployment, data PVC,
+NodePort service on 30410). If your cluster has an ingress controller you can
+switch the `model-builder` Service in `deploy/k8s/model-builder.yaml` to
+ClusterIP and add an Ingress instead. Never expose the gateway service
+outside the cluster.
+
+**4. Connect the Claude subscription (one time)**
+
+```bash
+kubectl -n model-builder exec -it deploy/claude-subscription-gateway -- claude setup-token
+```
+
+Open the printed URL in the browser on your own computer, sign in with the
+Claude Max/Pro account, and paste the code back. The credentials land on the
+`claude-credentials` volume and survive restarts and updates.
+
+Verify with a real completion (port-forward first:
+`kubectl -n model-builder port-forward svc/claude-subscription-gateway 8790:8790`):
+
+```bash
+CSG_API_KEY=$(kubectl -n model-builder get secret gateway-secrets -o jsonpath='{.data.CSG_API_KEY}' | base64 -d)
+curl -s http://localhost:8790/v1/messages \
+  -H "x-api-key: $CSG_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{"model":"sonnet","max_tokens":32,"messages":[{"role":"user","content":"Say ok."}]}'
+```
+
+A message envelope with a short reply means the chain works. 401 means the
+key does not match; 502 means the login failed.
+
+**5. Wire Model Builder to the gateway**
+
+Open `http://<server-ip>:30410`, go to **Settings → Claude Gateway**, and
+enter:
+
+- **URL:** `http://claude-subscription-gateway:8790`
+- **API key:** the `CSG_API_KEY` value from step 2
+- **Model:** `opus`
+
+Click **Test connection** (it runs a real completion and must succeed), then
+Save.
+
+**6. Run a first generation**
+
+Enter a company name in the UI (for example `Corning`, division
+`Optical Communications`) and start a generation, or:
+
+```bash
+curl -X POST http://<server-ip>:30410/generate \
+  -H "Content-Type: application/json" \
+  -d '{"company_name": "Corning", "division": "Optical Communications"}'
+```
+
+A full run takes about 2.5 minutes. Success is a JSON response with
+`research`, `plan`, `model`, and a `validation_report`, and the run appearing
+on the Models page.
+
+---
+
 ## After the install
 
 ```bash
