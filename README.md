@@ -67,6 +67,35 @@ the cluster instead of on the server itself (drop `--install-k3s`).
 
 ---
 
+## Supported Linux distributions
+
+Any systemd-based distribution that k3s supports works: Ubuntu, Debian,
+RHEL, Rocky, AlmaLinux, Fedora, SLES/openSUSE. The installer script uses no
+distro package manager, only `bash`, `curl`, `tar`, and `openssl`.
+
+**RHEL-family notes (RHEL, Rocky, AlmaLinux, Fedora):**
+
+- **firewalld** is on by default and blocks both the UI's NodePort (30410)
+  and Kubernetes pod networking. Either disable it
+  (`sudo systemctl disable --now firewalld`, the k3s recommendation) or allow
+  the k3s networks and the UI port:
+
+```bash
+sudo firewall-cmd --permanent --zone=trusted --add-source=10.42.0.0/16   # k3s pods
+sudo firewall-cmd --permanent --zone=trusted --add-source=10.43.0.0/16   # k3s services
+sudo firewall-cmd --permanent --add-port=30410/tcp                       # Model Builder UI
+sudo firewall-cmd --permanent --add-port=6443/tcp                        # only if kubectl connects remotely
+sudo firewall-cmd --reload
+```
+
+- **SELinux** needs nothing from you; the k3s installer detects it and
+  installs its `k3s-selinux` policy automatically.
+- **Cloud images** (RHEL on AWS and similar): k3s requires `nm-cloud-setup`
+  disabled: `sudo systemctl disable --now nm-cloud-setup.service
+  nm-cloud-setup.timer`, then reboot before installing.
+
+---
+
 ## Using an existing gateway
 
 If a claude-subscription-gateway already runs somewhere reachable, you can

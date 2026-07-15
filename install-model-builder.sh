@@ -91,6 +91,10 @@ fi
 $KUBECTL wait --for=condition=Ready node --all --timeout=120s >/dev/null
 echo "Cluster reachable: $($KUBECTL get nodes --no-headers | wc -l) node(s) Ready (using: $KUBECTL)"
 
+if command -v systemctl >/dev/null 2>&1 && systemctl is-active --quiet firewalld 2>/dev/null; then
+  warn "firewalld is active. On RHEL-family systems it blocks the UI NodePort (30410) and can break pod networking. Disable it (sudo systemctl disable --now firewalld) or allow the k3s networks and port 30410; see the README's distribution notes."
+fi
+
 if ! $KUBECTL get storageclass 2>/dev/null | grep -q '(default)'; then
   warn "no default StorageClass; PVCs will stay Pending. k3s ships one; on other clusters install a provisioner first."
 fi
