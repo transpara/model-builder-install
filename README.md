@@ -31,13 +31,17 @@ the application images are private and need one GitHub token (below).
 - Your **Claude Max (or Pro) account** login
 - **SSH access with sudo** on the target server
 
-**Then, in an SSH session on the server** — one line:
+**Then, in an SSH session on the server** — one line.
+
+Kubernetes already on the server (typical):
 
 ```bash
-# Kubernetes already on the server (typical):
 bash <(curl -sfL https://raw.githubusercontent.com/transpara/model-builder-install/main/install-model-builder.sh)
+```
 
-# Bare server with no Kubernetes yet (installs k3s first):
+Bare server with no Kubernetes yet (installs k3s first):
+
+```bash
 bash <(curl -sfL https://raw.githubusercontent.com/transpara/model-builder-install/main/install-model-builder.sh) --install-k3s
 ```
 
