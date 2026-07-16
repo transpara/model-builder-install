@@ -185,7 +185,26 @@ else
     echo "The CLI printed a long-lived token (sk-ant-oat01-...) but does NOT store it."
     echo "Paste it below; it is saved into the gateway-secrets secret, which the"
     echo "gateway injects into every claude call (survives restarts and updates)."
-    read -rsp "Token (hidden; Enter to skip): " OAUTH_TOKEN; echo
+    # Validate the paste: the token is ~108 chars and often wraps across two
+    # terminal lines when printed, so a scrollback copy can carry a line
+    # break and silently truncate at the hidden prompt (seen live: stored
+    # half-token -> 401 on every call).
+    while true; do
+      read -rsp "Token (hidden; Enter to skip): " OAUTH_TOKEN; echo
+      [ -z "$OAUTH_TOKEN" ] && break
+      OAUTH_TOKEN="$(printf %s "$OAUTH_TOKEN" | tr -d '[:space:]')"
+      case "$OAUTH_TOKEN" in
+        sk-ant-oat01-*)
+          if [ "${#OAUTH_TOKEN}" -ge 80 ]; then break; fi
+          echo "That looks truncated (${#OAUTH_TOKEN} chars, expected ~108). If the token"
+          echo "wrapped across two lines on screen, the clipboard split it: paste it into"
+          echo "a text editor, join it to one line, copy again, then retry."
+          ;;
+        *)
+          echo "That does not look like a setup-token value (should start with sk-ant-oat01-). Try again."
+          ;;
+      esac
+    done
     if [ -n "$OAUTH_TOKEN" ]; then
       $KUBECTL -n "$NS" patch secret gateway-secrets --type merge \
         -p "{\"stringData\":{\"CSG_CLAUDE_OAUTH_TOKEN\":\"$OAUTH_TOKEN\"}}"
