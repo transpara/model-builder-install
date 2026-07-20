@@ -18,7 +18,8 @@ Browser ──▶ Model Builder (:30410 NodePort) ──▶ Gateway (ClusterIP :
 
 This repository contains the installer script and the deployment manifests
 (`deploy/k8s/`). It is public so nothing here needs credentials to download;
-the application images are private and need one GitHub token (below).
+the application images pull anonymously from `registry.transpara.com`, so
+no registry credentials are needed either.
 
 ---
 
@@ -26,8 +27,6 @@ the application images are private and need one GitHub token (below).
 
 **Have ready before you start:**
 
-- A **GitHub classic PAT with the `read:packages` scope** (lets the cluster
-  pull the private application images)
 - Your **Claude Max (or Pro) account** login
 - **SSH access with sudo** on the target server
 
@@ -64,9 +63,8 @@ also works; the standalone script fetches the manifests itself.)
 **What happens next, in order:**
 
 1. The script installs k3s if needed (sudo), then checks the cluster.
-2. It prompts for your GitHub username and PAT (hidden input) to create the
-   image pull secret, and generates the gateway's key material. Existing
-   secrets are never overwritten on a re-run.
+2. It generates the gateway's key material. Existing secrets are never
+   overwritten on a re-run.
 3. It deploys everything and waits; the first image pulls take a few minutes.
 4. It runs health checks, then asks:
    `Run 'claude setup-token' in the gateway pod now? [y/N]`. Answer `y`, open
@@ -174,12 +172,6 @@ kubectl get storageclass   # one entry marked (default), or PVCs will not bind
 
 ```bash
 kubectl create namespace model-builder
-
-# Pull secret for the private application images
-kubectl -n model-builder create secret docker-registry ghcr-pull \
-  --docker-server=ghcr.io \
-  --docker-username=<your-github-username> \
-  --docker-password=<PAT with read:packages>
 
 # The gateway's key material. CSG_API_KEY is a password you INVENT (not an
 # Anthropic key); Model Builder sends it in the x-api-key header. The admin
@@ -303,7 +295,7 @@ step 4 (setup-token, save the printed token into the secret, restart).
 
 | Symptom | Cause / fix |
 |---|---|
-| Pod stuck `ImagePullBackOff` | The pull secret is missing or wrong, or the PAT expired or lacks `read:packages`. Delete the `ghcr-pull` secret and re-run the script to recreate it. |
+| Pod stuck `ImagePullBackOff` | The node cannot reach `registry.transpara.com`, or the pinned tag has not been published there yet — see "Images on registry.transpara.com" below. |
 | PVC stuck `Pending` | No default StorageClass. `kubectl get sc`; k3s ships one, other clusters need a provisioner. |
 | Gateway pod `CrashLoopBackOff`, logs say "CSG_API_KEY is required" | The `gateway-secrets` secret is missing. Re-run the script. |
 | Every gateway request returns 401 | Model Builder's saved key does not match the gateway's. Re-run the script; it re-saves the settings from the secret. |
@@ -329,3 +321,25 @@ deploy/k8s/                Kubernetes manifests (kustomize):
 
 These files are mirrored from the `transpara/model-builder` repository, which
 is their source of truth.
+
+---
+
+## Images on registry.transpara.com
+
+The application images are published to
+`registry.transpara.com/transpara/{model-builder,claude-subscription-gateway}`
+— the same Harbor project every other Transpara repo pushes its images to.
+The project allows anonymous pull, so the install needs no registry
+credentials.
+
+Harbor enforces **tag immutability** on this project: a tag can be pushed
+once and never overwritten. The manifests therefore pin images by git-SHA
+tag + digest (a floating `latest` cannot be refreshed there). Updating to a
+new build means pushing the new SHA tag, e.g.
+
+```bash
+crane copy ghcr.io/transpara/model-builder:<git-sha> \
+  registry.transpara.com/transpara/model-builder:<git-sha>
+```
+
+and bumping the `image:` refs in `deploy/k8s/`.
