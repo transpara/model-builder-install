@@ -332,14 +332,20 @@ The application images are published to
 The project allows anonymous pull, so the install needs no registry
 credentials.
 
-Harbor enforces **tag immutability** on this project: a tag can be pushed
-once and never overwritten. The manifests therefore pin images by git-SHA
-tag + digest (a floating `latest` cannot be refreshed there). Updating to a
-new build means pushing the new SHA tag, e.g.
+Harbor enforces **tag immutability** on this project, with one scoped
+exception: `model-builder:latest` is mutable, and CI republishes it (plus an
+immutable `:<git-sha>` tag for provenance) on every merge. So:
+
+- **Model Builder** floats on `:latest` (`imagePullPolicy: Always`).
+  Updating an installed box:
 
 ```bash
-crane copy ghcr.io/transpara/model-builder:<git-sha> \
-  registry.transpara.com/transpara/model-builder:<git-sha>
+kubectl -n model-builder rollout restart deploy/model-builder
 ```
 
-and bumping the `image:` refs in `deploy/k8s/`.
+- **The gateway** is pinned by immutable SHA tag + digest; new gateway
+  releases arrive as a manifest pin bump in this repository, applied with
+  `kubectl apply -k deploy/k8s/`.
+
+To see exactly which build a box runs, check the pod's imageID digest and
+match it against the SHA tags in Harbor.

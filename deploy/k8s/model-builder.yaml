@@ -38,14 +38,15 @@ spec:
         fsGroup: 1000
       containers:
         - name: model-builder
-          # Pulled anonymously from the Transpara registry (public project) —
-          # no imagePullSecrets needed. Harbor enforces tag immutability on
-          # this project, so tags are pinned (git SHA + digest, the Transpara
-          # convention) and updating means bumping this ref, never re-pushing.
-          image: registry.transpara.com/transpara/model-builder:ae419672cd24f09dd93e4e20f0b1888102463621@sha256:87660694326c3694e157df1813d63f0a2b06b1d92daf72f1b92df8534b3bb139
-          # IfNotPresent pairs with the immutable pinned tag — Always would
-          # just re-check the registry for a ref that cannot change.
-          imagePullPolicy: IfNotPresent
+          # Pulled anonymously from the Transpara registry. latest is MUTABLE
+          # here by an immutability-rule exception scoped to this tag; CI
+          # pushes it (plus an immutable git-SHA tag for provenance) on every
+          # merge to main. To see exactly what a box runs, check the pod's
+          # imageID digest or match it to a SHA tag in Harbor.
+          image: registry.transpara.com/transpara/model-builder:latest
+          # Always pairs with the mutable latest tag: a rollout restart
+          # re-checks the registry and picks up the newest build.
+          imagePullPolicy: Always
           ports:
             - containerPort: 4010
           env:
