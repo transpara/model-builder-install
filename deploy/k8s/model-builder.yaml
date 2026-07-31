@@ -38,15 +38,24 @@ spec:
         fsGroup: 1000
       containers:
         - name: model-builder
-          # Pulled anonymously from the Transpara registry. latest is MUTABLE
-          # here by an immutability-rule exception scoped to this tag; CI
-          # pushes it (plus an immutable git-SHA tag for provenance) on every
-          # merge to main. To see exactly what a box runs, check the pod's
-          # imageID digest or match it to a SHA tag in Harbor.
-          image: registry.transpara.com/transpara/model-builder:latest
-          # Always pairs with the mutable latest tag: a rollout restart
-          # re-checks the registry and picks up the newest build.
-          imagePullPolicy: Always
+          # Pulled anonymously from the Transpara registry (Harbor).
+          #
+          # PINNED to an immutable SHA tag plus its digest, matching how
+          # gateway.yaml pins. A partner or customer box must not move
+          # underneath them: `latest` is mutable here by an immutability-rule
+          # exception and CI republishes it on every merge to main, so a
+          # pod restart on an unpinned box silently adopts unreleased code.
+          #
+          # To upgrade: bump this to the new release's SHA + digest and
+          # `kubectl apply -k`. Both are printed in the GitHub release notes;
+          # the digest is also `docker inspect <tag> --format
+          # '{{index .RepoDigests 0}}'`.
+          #
+          # v0.2.0
+          image: registry.transpara.com/transpara/model-builder:53602af3325a920fce49f0da3c98c3be597c71c4@sha256:86d26b8beefe8e602e98cc1356386bacd73861ca5e0743a6b8c618092aec322a
+          # IfNotPresent is correct for a pinned digest: the content cannot
+          # change, so re-pulling it on every restart buys nothing.
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 4010
           env:
