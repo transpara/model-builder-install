@@ -231,7 +231,15 @@ fi
 
 # ── summary ──────────────────────────────────────────────────────────────
 NODE_IP=$($KUBECTL get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}')
+# Report WHICH build is now running. "unchanged" from kubectl apply is
+# ambiguous: it means the manifest matched, which is also what you see when
+# the fetched manifests were stale. git_sha is stamped into the image at
+# build time, so this is the running commit rather than a tag.
+BUILD="$($KUBECTL -n "$NS" exec deploy/model-builder --          curl -sf --max-time 5 http://localhost:4010/health 2>/dev/null || true)"
 say "Done"
+if [ -n "$BUILD" ]; then
+  echo "Running:       $BUILD"
+fi
 echo "UI:            http://$NODE_IP:30410"
 echo "Gateway key:   $KUBECTL -n $NS get secret gateway-secrets -o jsonpath='{.data.CSG_API_KEY}' | base64 -d"
 echo "Admin UI:      $KUBECTL -n $NS port-forward svc/claude-subscription-gateway 8790:8790  ->  http://localhost:8790/admin"
