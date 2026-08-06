@@ -275,8 +275,12 @@ kubectl -n model-builder port-forward svc/claude-subscription-gateway 8790:8790
 # Read the gateway API key back at any time
 kubectl -n model-builder get secret gateway-secrets -o jsonpath='{.data.CSG_API_KEY}' | base64 -d
 
-# Update to the latest images
-kubectl -n model-builder rollout restart deploy/model-builder deploy/claude-subscription-gateway
+# Which build is running (git_sha is stamped into the image at build time)
+kubectl -n model-builder exec deploy/model-builder -- curl -s localhost:4010/health
+
+# Update to a new release. Both images are PINNED, so a restart alone changes
+# nothing: take the new pin from this repo, then apply it.
+git pull && kubectl apply -k deploy/k8s/
 
 # Back up Model Builder's data (runs DB + settings)
 kubectl -n model-builder exec deploy/model-builder -- tar czf - -C /data . > model-data-backup.tgz
@@ -332,20 +336,34 @@ The application images are published to
 The project allows anonymous pull, so the install needs no registry
 credentials.
 
-Harbor enforces **tag immutability** on this project, with one scoped
-exception: `model-builder:latest` is mutable, and CI republishes it (plus an
-immutable `:<git-sha>` tag for provenance) on every merge. So:
+Harbor enforces **tag immutability** on this project. CI publishes an
+immutable `:<git-sha>` tag on every merge to main, and also moves `:latest`
+(mutable by a scoped exception) -- but **the manifests do not use `:latest`**.
 
-- **Model Builder** floats on `:latest` (`imagePullPolicy: Always`).
-  Updating an installed box:
+**Both images are pinned by immutable SHA tag + digest.** A pinned digest
+cannot change under a running box, so a pod restart can never silently adopt
+unreleased code. That also means:
 
 ```bash
+# This does NOT update anything on a pinned box: it restarts the same image.
 kubectl -n model-builder rollout restart deploy/model-builder
 ```
 
-- **The gateway** is pinned by immutable SHA tag + digest; new gateway
-  releases arrive as a manifest pin bump in this repository, applied with
-  `kubectl apply -k deploy/k8s/`.
+**To update a box**, take the new pin and apply it:
 
-To see exactly which build a box runs, check the pod's imageID digest and
-match it against the SHA tags in Harbor.
+```bash
+git pull                       # in a clone of this repo
+kubectl apply -k deploy/k8s/
+kubectl -n model-builder rollout status deploy/model-builder
+```
+
+New releases arrive here as a pin bump. To see exactly which build a box is
+running, ask it:
+
+```bash
+kubectl -n model-builder exec deploy/model-builder -- curl -s localhost:4010/health
+# {"status":"ok","version":"0.3.0","git_sha":"db0e956...","built_at":"..."}
+```
+
+`git_sha` is stamped into the image at build time, so it reports the commit
+the running code was built from rather than whatever a tag points at now.
