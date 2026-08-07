@@ -51,8 +51,8 @@ spec:
           # the digest is also `docker inspect <tag> --format
           # '{{index .RepoDigests 0}}'`.
           #
-          # v0.3.13
-          image: registry.transpara.com/transpara/model-builder:3fa688f0a5f52a140ffde30783718bd8bf221bfb@sha256:4b07ad6a8420b1ce0a140a3a55f7e31ba809ce6e61ca1668a63395a970e0dd59
+          # v0.3.14
+          image: registry.transpara.com/transpara/model-builder:b16f640823750d36f4d28f9712e6edd9b0a238f7@sha256:258123e7932fa60e184bc97ed044b9f31aa441701262ac7f2cb0e92baf97076e
           # IfNotPresent is correct for a pinned digest: the content cannot
           # change, so re-pulling it on every restart buys nothing.
           imagePullPolicy: IfNotPresent
