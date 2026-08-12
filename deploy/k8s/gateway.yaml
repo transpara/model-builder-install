@@ -59,7 +59,7 @@ spec:
           # no imagePullSecrets needed. Harbor enforces tag immutability on
           # this project, so tags are pinned (git SHA + digest, the Transpara
           # convention) and updating means bumping this ref, never re-pushing.
-          image: registry.transpara.com/transpara/claude-subscription-gateway:224fc9bb305ca94815c4f050a532aa8ae05d1b91@sha256:2df557fdaebbcfbc3a97168260f04e6e9a33b9625f63d945f7340897d5fd073e
+          image: registry.transpara.com/transpara/claude-subscription-gateway:6716a1842af5c423caf4ea004be52d4113b61bff@sha256:9e3ddb72d986d2ce811a8b39f6c1071899ced67134ec3ad72478abb3cc4f467b
           # IfNotPresent pairs with the immutable pinned tag — Always would
           # just re-check the registry for a ref that cannot change.
           imagePullPolicy: IfNotPresent
