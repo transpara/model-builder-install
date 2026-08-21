@@ -52,7 +52,7 @@ spec:
           # '{{index .RepoDigests 0}}'`.
           #
           # v0.18.43
-          image: registry.transpara.com/transpara/model-builder:cdeed7ee0c8b55433cb76107991d43a42552de1d@sha256:e06409c433bca6499e7716e0d89ccfc06394e5953f247313cebaa7af6eb7eba5
+          image: registry.transpara.com/transpara/model-builder:364aa2c308239f06e0c64a8f1ae867b360b34f14@sha256:8c5f0d52d430d404b2678147dbc7aa1c292472094cf5869f0b159b91e72f50ae
           # IfNotPresent is correct for a pinned digest: the content cannot
           # change, so re-pulling it on every restart buys nothing.
           imagePullPolicy: IfNotPresent
